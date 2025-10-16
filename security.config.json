@@ -1,0 +1,104 @@
+{
+  "security": {
+    "rateLimiting": {
+      "windowMs": 60000,
+      "maxRequests": {
+        "default": 100,
+        "auth": 20,
+        "api": 200,
+        "whatsapp": 60
+      }
+    },
+    "loginProtection": {
+      "maxAttempts": 5,
+      "lockoutDuration": 900000,
+      "resetAfter": 3600000
+    },
+    "inputValidation": {
+      "maxInputLength": 10000,
+      "allowedFileTypes": [".jpg", ".jpeg", ".png", ".gif", ".pdf", ".doc", ".docx"],
+      "maxFileSize": 10485760,
+      "sanitizeHTML": true,
+      "detectSQLInjection": true,
+      "detectXSS": true,
+      "detectPathTraversal": true
+    },
+    "sessionSecurity": {
+      "secretLength": 64,
+      "expiresIn": 604800,
+      "rotationInterval": 86400,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "strict"
+    },
+    "encryption": {
+      "algorithm": "aes-256-gcm",
+      "keyLength": 32,
+      "ivLength": 16,
+      "tagLength": 16
+    },
+    "monitoring": {
+      "logLevel": "info",
+      "retentionDays": 30,
+      "alertThreshold": {
+        "failedLogins": 5,
+        "suspiciousRequests": 100,
+        "criticalEvents": 1
+      }
+    },
+    "headers": {
+      "contentSecurityPolicy": {
+        "defaultSrc": ["'self'"],
+        "scriptSrc": ["'self'", "'unsafe-inline'"],
+        "styleSrc": ["'self'", "'unsafe-inline'"],
+        "imgSrc": ["'self'", "data:", "https:", "blob:"],
+        "connectSrc": ["'self'", "ws:", "wss:"],
+        "frameAncestors": ["'none'"],
+        "baseUri": ["'self'"],
+        "formAction": ["'self'"]
+      },
+      "strictTransportSecurity": {
+        "maxAge": 31536000,
+        "includeSubDomains": true,
+        "preload": false
+      },
+      "xFrameOptions": "DENY",
+      "xContentTypeOptions": "nosniff",
+      "referrerPolicy": "strict-origin-when-cross-origin",
+      "permissionsPolicy": {
+        "camera": [],
+        "microphone": [],
+        "geolocation": [],
+        "payment": []
+      }
+    }
+  },
+  "vulnerabilityScanning": {
+    "enabled": true,
+    "schedule": "daily",
+    "autoFix": {
+      "patch": true,
+      "minor": true,
+      "major": false
+    }
+  },
+  "compliance": {
+    "dataRetention": {
+      "logs": 90,
+      "userAccounts": 2555,
+      "chatMessages": 365
+    },
+    "gdpr": {
+      "dataPortability": true,
+      "rightToErasure": true,
+      "consentRequired": true,
+      "dataProcessingRecords": true
+    },
+    "auditLogging": {
+      "authEvents": true,
+      "dataAccess": true,
+      "configurationChanges": true,
+      "securityEvents": true
+    }
+  }
+}

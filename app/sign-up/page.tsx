@@ -12,8 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { signUp } from "@/lib/auth-client";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff, Shield, Users } from "lucide-react";
 
 const signUpSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -23,6 +24,9 @@ const signUpSchema = z.object({
         .min(8, "Password must be at least 8 characters")
         .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Password must contain at least one uppercase letter, one lowercase letter, and one number"),
     confirmPassword: z.string(),
+    role: z.enum(["agent", "admin"], {
+      required_error: "Please select a role",
+    }),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
     path: ["confirmPassword"],
@@ -44,6 +48,7 @@ export default function SignUpPage() {
             email: "",
             password: "",
             confirmPassword: "",
+            role: undefined,
         },
     });
 
@@ -56,6 +61,7 @@ export default function SignUpPage() {
                 email: data.email,
                 password: data.password,
                 name: data.name,
+                role: data.role,
             });
 
             if (result.error) {
@@ -101,6 +107,44 @@ export default function SignUpPage() {
                                                 disabled={isLoading}
                                             />
                                         </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="role"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Account Type</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select your role" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="agent">
+                                                    <div className="flex items-center gap-2">
+                                                        <Users className="h-4 w-4" />
+                                                        <div>
+                                                            <div className="font-medium">Agent</div>
+                                                            <div className="text-sm text-muted-foreground">Handle customer conversations</div>
+                                                        </div>
+                                                    </div>
+                                                </SelectItem>
+                                                <SelectItem value="admin">
+                                                    <div className="flex items-center gap-2">
+                                                        <Shield className="h-4 w-4" />
+                                                        <div>
+                                                            <div className="font-medium">Admin</div>
+                                                            <div className="text-sm text-muted-foreground">Manage users and system settings</div>
+                                                        </div>
+                                                    </div>
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         <FormMessage />
                                     </FormItem>
                                 )}

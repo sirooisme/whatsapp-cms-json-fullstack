@@ -1,116 +1,155 @@
-# Security Guidelines for codeguide-starter
+# Security Guidelines for `whatsapp-cms-json-fullstack`
 
-This document defines mandatory security principles and implementation best practices tailored to the **codeguide-starter** repository. It aligns with Security-by-Design, Least Privilege, Defense-in-Depth, and other core security tenets. All sections reference specific areas of the codebase (e.g., `/app/api/auth/route.ts`, CSS files, environment configuration) to ensure practical guidance.
-
----
-
-## 1. Security by Design
-
-• Embed security from day one: review threat models whenever adding new features (e.g., new API routes, data fetching).
-• Apply “secure defaults” in Next.js configuration (`next.config.js`), enabling strict mode and disabling debug flags in production builds.
-• Maintain a security checklist in your PR template to confirm that each change has been reviewed against this guideline.
+This document provides actionable security best practices tailored to the `whatsapp-cms-json-fullstack` repository. It embeds security by design, least privilege, defense in depth, and other core principles from the initial design through deployment.
 
 ---
 
-## 2. Authentication & Access Control
+## 1. Authentication & Access Control
 
-### 2.1 Password Storage
-- Use **bcrypt** (or Argon2) with a per-user salt to hash passwords in `/app/api/auth/route.ts`.
-- Enforce a strong password policy on both client and server: minimum 12 characters, mixed case, numbers, and symbols.
+### 1.1 Robust Authentication
+- Leverage Better Auth’s secure password hashing (e.g., bcrypt/Argon2) with unique salts. Ensure the default scheme meets OWASP recommendations.
+- Enforce strong password policies: minimum 12 characters, at least one uppercase, one lowercase, one digit, and one special character.
+- Implement account lockout or rate-limiting on failed sign-in attempts to thwart brute-force attacks.
 
-### 2.2 Session Management
-- Issue sessions via Secure, HttpOnly, SameSite=strict cookies. Do **not** expose tokens to JavaScript.
-- Implement absolute and idle timeouts. For example, invalidate sessions after 30 minutes of inactivity.
-- Protect against session fixation by regenerating session IDs after authentication.
+### 1.2 Session Management & Secure Cookies
+- Use **Secure**, **HttpOnly**, and **SameSite=Strict** flags on session cookies. 
+- Enforce idle and absolute timeouts (e.g., idle timeout: 15 min, absolute timeout: 8 hours).
+- Provide explicit logout endpoints that destroy server-side session state and clear cookies.
+- Protect against session fixation by regenerating session identifiers upon login.
 
-### 2.3 Brute-Force & Rate Limiting
-- Apply rate limiting at the API layer (e.g., using `express-rate-limit` or Next.js middleware) on `/api/auth` to throttle repeated login attempts.
-- Introduce exponential backoff or temporary lockout after N failed attempts.
+### 1.3 Role-Based Access Control (RBAC)
+- Extend user schema (`users.json`) with a mandatory `role` field: `'admin'` or `'agent'`.
+- Centralize role checks in Next.js Middleware (`middleware.ts`) to guard:
+  - `/api/*` routes
+  - `/dashboard/*` pages (agent)
+  - `/admin/dashboard/*` pages (admin)
+- Fail closed: deny access by default if role validation fails.
 
-### 2.4 Role-Based Access Control (Future)
-- Define user roles in your database model (e.g., `role = 'user' | 'admin'`).
-- Enforce server-side authorization checks in every protected route (e.g., in `dashboard/layout.tsx` loader functions).
-
----
-
-## 3. Input Handling & Processing
-
-### 3.1 Validate & Sanitize All Inputs
-- On **client** (`sign-up/page.tsx`, `sign-in/page.tsx`): perform basic format checks (email regex, password length).
-- On **server** (`/app/api/auth/route.ts`): re-validate inputs with a schema validator (e.g., `zod`, `Joi`).
-- Reject or sanitize any unexpected fields to prevent injection attacks.
-
-### 3.2 Prevent Injection
-- If you introduce a database later, always use parameterized queries or an ORM (e.g., Prisma) rather than string concatenation.
-- Avoid dynamic `eval()` or template rendering with unsanitized user input.
-
-### 3.3 Safe Redirects
-- When redirecting after login or logout, validate the target against an allow-list to prevent open redirects.
+### 1.4 Multi-Factor Authentication (MFA)
+- Consider integrating an optional TOTP-based MFA for admin users.
+- Store MFA secrets encrypted in a separate JSON file with strict file permissions.
 
 ---
 
-## 4. Data Protection & Privacy
+## 2. Input Handling & Processing
 
-### 4.1 Encryption & Secrets
-- Enforce HTTPS/TLS 1.2+ for all front-end ↔ back-end communications.
-- Never commit secrets—use environment variables and a secrets manager (e.g., AWS Secrets Manager, Vault).
+### 2.1 Input Validation & Schema Enforcement
+- Use Zod schemas in every API route (`/app/api/*`) to validate request payloads prior to any processing or file writes.
+- Reject or sanitize unexpected fields to prevent injection or data corruption.
 
-### 4.2 Sensitive Data Handling
-- Do ​not​ log raw passwords, tokens, or PII in server logs. Mask or redact any user identifiers.
-- If storing PII in `data.json` or a future database, classify it and apply data retention policies.
+### 2.2 Prevent Injection Attacks
+- Avoid dynamic evaluation of user input. All JSON file writes must go through the typed `json-db.ts` service.
+- Do _not_ interpolate user-supplied strings into file paths. Validate filenames against an allow-list or fixed map.
 
----
+### 2.3 Secure File Uploads (If Applicable)
+- If future features include file attachments:
+  - Validate file extensions and MIME types.
+  - Enforce maximum file size limits.
+  - Scan files with an antivirus/malware scanner before saving.
+  - Store uploads outside the webroot under `/data/uploads`.
 
-## 5. API & Service Security
-
-### 5.1 HTTPS Enforcement
-- In production, redirect all HTTP traffic to HTTPS (e.g., via Vercel’s redirect rules or custom middleware).
-
-### 5.2 CORS
-- Configure `next.config.js` or API middleware to allow **only** your front-end origin (e.g., `https://your-domain.com`).
-
-### 5.3 API Versioning & Minimal Exposure
-- Version your API routes (e.g., `/api/v1/auth`) to handle future changes without breaking clients.
-- Return only necessary fields in JSON responses; avoid leaking internal server paths or stack traces.
+### 2.4 Prevent Template & XSS Injection
+- Use React’s built-in escaping (avoid `dangerouslySetInnerHTML`).
+- If rendering HTML snippets, sanitize with a library like DOMPurify.
+- Set a strict Content Security Policy (CSP) header to disallow inline scripts/styles.
 
 ---
 
-## 6. Web Application Security Hygiene
+## 3. Data Protection & Privacy
 
-### 6.1 CSRF Protection
-- Use anti-CSRF tokens for any state-changing API calls. Integrate Next.js CSRF middleware or implement synchronizer tokens stored in cookies.
+### 3.1 Secure JSON Storage
+- Store all data files in a non-public `/data` directory and add it to `.gitignore`.
+- Assign restrictive file permissions (e.g., 600 for user-readable/writable only by the service account).
+- Implement file-locking or a write queue in `json-db.ts` to prevent concurrent write corruption.
 
-### 6.2 Security Headers
-- In `next.config.js` (or a custom server), add these headers:
-  - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`
-  - `X-Content-Type-Options: nosniff`
-  - `X-Frame-Options: DENY`
-  - `Referrer-Policy: no-referrer-when-downgrade`
-  - `Content-Security-Policy`: restrict script/style/src to self and trusted CDNs.
+### 3.2 Encryption & Secrecy
+- Never commit API keys, session secrets, or credentials to source control. Use environment variables or a secrets manager.
+- If JSON data contains PII, consider encrypting at rest using AES-256. Decrypt only in memory when needed.
 
-### 6.3 Secure Cookies
-- Set `Secure`, `HttpOnly`, `SameSite=Strict` on all cookies. Avoid storing sensitive data in `localStorage`.
-
-### 6.4 Prevent XSS
-- Escape or encode all user-supplied data in React templates. Avoid `dangerouslySetInnerHTML` unless content is sanitized.
+### 3.3 Prevent Information Leakage
+- Sanitize error messages: return generic error responses (e.g., “Invalid request”) to clients. Log detailed errors server-side.
+- Mask PII in logs and audit trails (e.g., only log user IDs, not phone numbers).
 
 ---
 
-## 7. Infrastructure & Configuration Management
+## 4. API & Service Security
 
-- Harden your hosting environment (e.g., Vercel/Netlify) by disabling unnecessary endpoints (GraphQL/GraphiQL playgrounds in production).
-- Rotate secrets and API keys regularly via your secrets manager.
-- Maintain minimal privileges: e.g., database accounts should only have read/write on required tables.
-- Keep Node.js, Next.js, and all system packages up to date.
+### 4.1 Enforce HTTPS
+- Require HTTPS in all environments. Redirect HTTP → HTTPS.
+- Use strong TLS configurations (TLSv1.2+, disable weak ciphers).
+
+### 4.2 Rate Limiting & Throttling
+- Implement rate limiting (e.g., 100 requests/minute per IP) on sensitive endpoints like `/api/auth` and `/api/whatsapp`.
+- Return HTTP 429 on limit exceeded.
+
+### 4.3 CORS Configuration
+- Restrict CORS to trusted UI origins only.
+- Do not use wildcard (`*`) for Access-Control-Allow-Origin in production.
+
+### 4.4 WhatsApp Service Integration
+- Encapsulate Baileys client in a singleton (`whatsapp-service.ts`) to avoid reauthentication on each request.
+- Validate all incoming WhatsApp payloads (webhook events) against expected schemas.
+- Sign and verify webhook callbacks if supported by the library.
+
+### 4.5 API Versioning
+- Prefix API routes with a version (e.g., `/api/v1/whatsapp/send`).
+- Deprecate old versions gracefully.
 
 ---
 
-## 8. Dependency Management
+## 5. Web Application Security Hygiene
 
-- Commit and maintain `package-lock.json` to guarantee reproducible builds.
-- Integrate a vulnerability scanner (e.g., GitHub Dependabot, Snyk) to monitor and alert on CVEs in dependencies.
-- Trim unused packages; each added library increases the attack surface.
+### 5.1 CSRF Protection
+- Use anti-CSRF tokens (synchronizer token pattern) for all state-changing requests (e.g., sending messages, user updates).
+- Store CSRF token in a secure, HttpOnly cookie.
+
+### 5.2 Security Headers
+- **Strict-Transport-Security:** `max-age=63072000; includeSubDomains; preload`
+- **X-Content-Type-Options:** `nosniff`
+- **X-Frame-Options:** `DENY`
+- **Content-Security-Policy:** restrict to self for scripts/styles, fonts, images.
+- **Referrer-Policy:** `no-referrer-when-downgrade`
+
+### 5.3 Secure Client-Side Storage
+- Do not store JWTs or sensitive tokens in localStorage or sessionStorage.
+- If using JWTs, store them in Secure, HttpOnly cookies only.
+
+### 5.4 Subresource Integrity (SRI)
+- Add SRI hashes for any third-party CDN scripts/CSS.
 
 ---
 
-Adherence to these guidelines will ensure that **codeguide-starter** remains secure, maintainable, and resilient as it evolves. Regularly review and update this document to reflect new threats and best practices.
+## 6. Infrastructure & Configuration Management
+
+### 6.1 Server & Environment Hardening
+- Run the Next.js server under a dedicated, low-privilege service account.
+- Disable directory listing and unnecessary server modules.
+- Keep Node.js, Next.js, and all dependencies up to date.
+
+### 6.2 Secrets Management
+- Use a dedicated secrets vault (e.g., AWS Secrets Manager, HashiCorp Vault) for database credentials, session secrets, and WhatsApp tokens.
+- Rotate secrets regularly.
+
+### 6.3 Secure Logging & Monitoring
+- Centralize logs in a secure service (e.g., AWS CloudWatch, ELK).
+- Monitor for anomalous login attempts, error spikes, or suspicious API usage.
+
+---
+
+## 7. Dependency Management
+
+- Maintain a lockfile (`package-lock.json`) to ensure deterministic builds.
+- Regularly scan dependencies with tools like `npm audit`, `Snyk`, or `Dependabot` for known vulnerabilities.
+- Only include necessary libraries (e.g., Zod, Baileys) and remove unused ones.
+
+---
+
+## 8. Testing & Validation
+
+- **Unit Tests**: Cover `json-db.ts` and `whatsapp-service.ts`, mocking file I/O and external connections.
+- **Integration Tests**: Validate full API routes, including authentication flows and RBAC enforcement.
+- **Security Tests**: Use automated scanners (e.g., OWASP ZAP) against staging deployments.
+
+---
+
+By following these guidelines, the `whatsapp-cms-json-fullstack` application will uphold a strong security posture from development through production, ensuring data integrity, confidentiality, and availability for your WhatsApp CMS solution.
